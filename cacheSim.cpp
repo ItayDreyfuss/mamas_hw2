@@ -77,16 +77,16 @@ public:
                 Block blk = *it;
                 set.erase(it);
                 set.push_front(blk);
-                return;
+                return true;
             }
         }
 
-        // Miss
+        // If we are here, it's a miss
         misses++;
 
         if (isWrite && !writeAllocate) {
             // No write allocate: don't bring block into cache
-            return;
+            return false;
         }
 
         // Write allocate OR read miss: bring block into cache
@@ -94,6 +94,7 @@ public:
             set.pop_back(); // evict LRU
         }
         set.push_front({tag, true, isWrite});
+        return false;
     }
 
     size_t getTotalAccesses() const {
@@ -104,6 +105,10 @@ public:
         return misses;
     }
 };
+
+
+
+
 
 
 
@@ -164,8 +169,8 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	Cache l1(L1Size, L1BlockSize, L1Assoc, L1Cyc, WrAlloc); 
-	Cache l2(L2Size, L2BlockSize, L2Assoc, L2Cyc, WrAlloc); 
+	Cache l1(L1Size, BSize, L1Assoc, L1Cyc, WrAlloc); 
+	Cache l2(L2Size, BSize, L2Assoc, L2Cyc, WrAlloc); 
 	
 	while (getline(file, line)) {
 
@@ -192,18 +197,17 @@ int main(int argc, char **argv) {
 		// DEBUG - remove this line
 		cout << " (dec) " << num << endl;
 
-		l1.access(num);
+		int is_l1_hit = l1.access(num, operation == 'W');
+        if (!is_l1_hit) {
+            int is_l2_hit = l2.access(num, operation == 'W');
+            // On L2 miss, we assume memory access happens (not modeled here)
+        }
 	}
 
-	double L1MissRate = l1.getTotalAcceses;
-	double L2MissRate
-	double avgAccTime;
-
-	//unsigned MemCyc = 0, BSize = 0, L1Size = 0, L2Size = 0, L1Assoc = 0,
-			//L2Assoc = 0, L1Cyc = 0, L2Cyc = 0, WrAlloc = 0;
+	double L1MissRate = l1.getMisses() / (double)l1.getTotalAccesses();
+	double L2MissRate = l2.getMisses() / (double)l2.getTotalAccesses();
+	double avgAccTime = L1Cyc + L1MissRate * (L2Cyc + L2MissRate * MemCyc);
 	
-
-
 
 	printf("L1miss=%.03f ", L1MissRate);
 	printf("L2miss=%.03f ", L2MissRate);
