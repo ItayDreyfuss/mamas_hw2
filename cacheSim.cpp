@@ -203,7 +203,7 @@ int main(int argc, char **argv) {
         
 
         // Here our code starts
-		bool write = operation == 'W';
+		bool write = operation == 'W' || operation == 'w';
 		bool is_l1_hit = l1.access(num, write);
 		// we accessed l1 from CPU
 		total_time += L1Cyc;
