@@ -69,7 +69,7 @@ public:
         totalAccesses++;
         size_t setIdx = getSetIndex(addr);
         uint64_t tag = getTag(addr);
-
+		std::cout << setIdx << " " << tag << " " << std::endl;
         auto &set = sets[setIdx];
         for (auto it = set.begin(); it != set.end(); ++it) {
             if (it->valid && it->tag == tag) {
@@ -169,10 +169,14 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	Cache l1(L1Size, BSize, L1Assoc, L1Cyc, WrAlloc); 
-	Cache l2(L2Size, BSize, L2Assoc, L2Cyc, WrAlloc); 
+	Cache l1((1<<L1Size), (1<<BSize), (1<<L1Assoc), L1Cyc, WrAlloc); 
+	Cache l2((1<<L2Size), (1<<BSize), (1<<L2Assoc), L2Cyc, WrAlloc); 
 	
+	unsigned total_time = 0, accesses;
+
+
 	while (getline(file, line)) {
+		accesses++;
 
 		stringstream ss(line);
 		string address;
@@ -197,16 +201,42 @@ int main(int argc, char **argv) {
 		// DEBUG - remove this line
 		cout << " (dec) " << num << endl;
 
-		int is_l1_hit = l1.access(num, operation == 'W');
+		bool write = operation == 'W';
+
+
+		int is_l1_hit = l1.access(num, write);
+		// we accessed l1 from CPU
+		total_time += L1Cyc;
+
+		std::cout << (is_l1_hit?"hit":"miss") << std::endl;
+
+
+		// if we are writing and no write allocate, we are always done at this stage
+		// if its a hit, we are done, if its a miss, everything will happen in background
+		if(write && !WrAlloc) continue; 
+
+	
         if (!is_l1_hit) {
-            int is_l2_hit = l2.access(num, operation == 'W');
-            // On L2 miss, we assume memory access happens (not modeled here)
+            // either we are reading or we are in write mode with write alloc 
+			int is_l2_hit = l2.access(num,write);
+			// L1 accessed l2, add to total_time
+			total_time += L2Cyc;
+			// if l2 missed, l2 will access memory, and memory will return data. 
+			if(!is_l2_hit){
+				std::cout << "we accessede memory " << MemCyc << std::endl;
+				total_time += 	MemCyc;
+			}
+			// L2 returns block to L1
+			//total_time += L2Cyc;
+			// L1 returns block to cpu if we are read
+			//if(!write) total_time += L1Cyc;
         }
 	}
-
+	
+	std::cout << l1.getMisses()  << " " <<  (double)l1.getTotalAccesses() << std::endl;
 	double L1MissRate = l1.getMisses() / (double)l1.getTotalAccesses();
 	double L2MissRate = l2.getMisses() / (double)l2.getTotalAccesses();
-	double avgAccTime = L1Cyc + L1MissRate * (L2Cyc + L2MissRate * MemCyc);
+	double avgAccTime = total_time / (double)accesses;
 	
 
 	printf("L1miss=%.03f ", L1MissRate);
