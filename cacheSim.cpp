@@ -14,7 +14,7 @@
 class Cache {
 private:
     struct Block {
-        uint64_t tag;
+        size_t tag;
         bool valid;
         bool dirty;
     };
@@ -38,11 +38,11 @@ private:
     size_t misses;
 
     // Helpers
-    size_t getSetIndex(uint64_t addr) const {
+    size_t getSetIndex(unsigned long addr) const {
         return (addr / blockSize) % numSets;
     }
 
-    uint64_t getTag(uint64_t addr) const {
+    size_t getTag(unsigned long addr) const {
         return (addr / blockSize) / numSets;
     }
 
@@ -65,11 +65,11 @@ public:
         sets.resize(numSets);
     }
 
-    bool access(uint64_t addr, bool isWrite) {
+    bool access(unsigned long addr, bool isWrite) {
         totalAccesses++;
         size_t setIdx = getSetIndex(addr);
-        uint64_t tag = getTag(addr);
-		std::cout << setIdx << " " << tag << " " << std::endl;
+        size_t tag = getTag(addr);
+		cout << setIdx << " " << tag << " " << endl;
         auto &set = sets[setIdx];
         for (auto it = set.begin(); it != set.end(); ++it) {
             if (it->valid && it->tag == tag) {
@@ -172,7 +172,7 @@ int main(int argc, char **argv) {
 	Cache l1((1<<L1Size), (1<<BSize), (1<<L1Assoc), L1Cyc, WrAlloc); 
 	Cache l2((1<<L2Size), (1<<BSize), (1<<L2Assoc), L2Cyc, WrAlloc); 
 	
-	unsigned total_time = 0, accesses;
+	unsigned total_time = 0, accesses = 0;
 
 
 	while (getline(file, line)) {
@@ -200,30 +200,30 @@ int main(int argc, char **argv) {
 
 		// DEBUG - remove this line
 		cout << " (dec) " << num << endl;
+        
 
+        // Here our code starts
 		bool write = operation == 'W';
-
-
-		int is_l1_hit = l1.access(num, write);
+		bool is_l1_hit = l1.access(num, write);
 		// we accessed l1 from CPU
 		total_time += L1Cyc;
 
-		std::cout << (is_l1_hit?"hit":"miss") << std::endl;
+		cout << (is_l1_hit?"hit":"miss") << endl; // FIXME: remove debug line
 
 
 		// if we are writing and no write allocate, we are always done at this stage
 		// if its a hit, we are done, if its a miss, everything will happen in background
-		if(write && !WrAlloc) continue; 
+		if(write && !WrAlloc) continue;
 
-	
+        // if l1 missed
         if (!is_l1_hit) {
             // either we are reading or we are in write mode with write alloc 
-			int is_l2_hit = l2.access(num,write);
+			bool is_l2_hit = l2.access(num,write);
 			// L1 accessed l2, add to total_time
 			total_time += L2Cyc;
 			// if l2 missed, l2 will access memory, and memory will return data. 
 			if(!is_l2_hit){
-				std::cout << "we accessede memory " << MemCyc << std::endl;
+				cout << "we accessed memory " << MemCyc << endl;
 				total_time += 	MemCyc;
 			}
 			// L2 returns block to L1
@@ -232,8 +232,8 @@ int main(int argc, char **argv) {
 			//if(!write) total_time += L1Cyc;
         }
 	}
-	
-	std::cout << l1.getMisses()  << " " <<  (double)l1.getTotalAccesses() << std::endl;
+
+	cout << l1.getMisses()  << " " <<  (double)l1.getTotalAccesses() << endl;
 	double L1MissRate = l1.getMisses() / (double)l1.getTotalAccesses();
 	double L2MissRate = l2.getMisses() / (double)l2.getTotalAccesses();
 	double avgAccTime = total_time / (double)accesses;
