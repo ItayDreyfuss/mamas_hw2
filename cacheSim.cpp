@@ -11,113 +11,99 @@
 #include <vector>
 #include <cstdint>
 
-// class Cache {
-// private:
-//     struct Block {
-//         uint64_t tag;
-//         bool valid;
-//         bool dirty;
-//     };
+class Cache {
+private:
+    struct Block {
+        uint64_t tag;
+        bool valid;
+        bool dirty;
+    };
 
-//     // Parameters
-//     size_t cacheSize;       // bytes
-//     size_t blockSize;       // bytes
-//     size_t associativity;   // ways
-//     size_t cyclesPerAccess; // cycles
-//     bool writeAllocate;     // true = write allocate, false = no write allocate
+    // Parameters
+    size_t cacheSize;       // bytes
+    size_t blockSize;       // bytes
+    size_t associativity;   // ways
+    size_t cyclesPerAccess; // cycles
+    bool writeAllocate;     // true = write allocate, false = no write allocate
 
-//     // Derived
-//     size_t numSets;
-//     size_t blocksPerSet;
+    // Derived
+    size_t numSets;
+    size_t blocksPerSet;
 
-//     // Data structure: each set is a list (LRU)
-//     std::vector<std::list<Block>> sets;
+    // Data structure: each set is a list (LRU)
+    std::vector<std::list<Block>> sets;
 
-//     // Stats
-//     size_t totalAccesses;
-//     size_t misses;
+    // Stats
+    size_t totalAccesses;
+    size_t misses;
 
-//     // Helpers
-//     size_t getSetIndex(uint64_t addr) const {
-//         return (addr / blockSize) % numSets;
-//     }
+    // Helpers
+    size_t getSetIndex(uint64_t addr) const {
+        return (addr / blockSize) % numSets;
+    }
 
-//     uint64_t getTag(uint64_t addr) const {
-//         return (addr / blockSize) / numSets;
-//     }
+    uint64_t getTag(uint64_t addr) const {
+        return (addr / blockSize) / numSets;
+    }
 
-// public:
-//     Cache(size_t cacheSizeBytes,
-//           size_t blockSizeBytes,
-//           size_t assoc,
-//           size_t cycles,
-//           bool wrAlloc)
-//         : cacheSize(cacheSizeBytes),
-//           blockSize(blockSizeBytes),
-//           associativity(assoc),
-//           cyclesPerAccess(cycles),
-//           writeAllocate(wrAlloc),
-//           totalAccesses(0),
-//           misses(0)
-//     {
-//         numSets = (cacheSize / blockSize) / associativity;
-//         blocksPerSet = associativity;
-//         sets.resize(numSets);
-//     }
+public:
+    Cache(size_t cacheSizeBytes,
+          size_t blockSizeBytes,
+          size_t assoc,
+          size_t cycles,
+          bool wrAlloc)
+        : cacheSize(cacheSizeBytes),
+          blockSize(blockSizeBytes),
+          associativity(assoc),
+          cyclesPerAccess(cycles),
+          writeAllocate(wrAlloc),
+          totalAccesses(0),
+          misses(0)
+    {
+        numSets = (cacheSize / blockSize) / associativity;
+        blocksPerSet = associativity;
+        sets.resize(numSets);
+    }
 
-//     void access(uint64_t addr, bool isWrite) {
-//         totalAccesses++;
-//         size_t setIdx = getSetIndex(addr);
-//         uint64_t tag = getTag(addr);
+    void access(uint64_t addr, bool isWrite) {
+        totalAccesses++;
+        size_t setIdx = getSetIndex(addr);
+        uint64_t tag = getTag(addr);
 
-//         auto &set = sets[setIdx];
-//         for (auto it = set.begin(); it != set.end(); ++it) {
-//             if (it->valid && it->tag == tag) {
-//                 // Hit: move to front (LRU)
-//                 Block blk = *it;
-//                 set.erase(it);
-//                 set.push_front(blk);
-//                 return;
-//             }
-//         }
+        auto &set = sets[setIdx];
+        for (auto it = set.begin(); it != set.end(); ++it) {
+            if (it->valid && it->tag == tag) {
+                // Hit: move to front (LRU)
+                Block blk = *it;
+                set.erase(it);
+                set.push_front(blk);
+                return;
+            }
+        }
 
-//         // Miss
-//         misses++;
+        // Miss
+        misses++;
 
-//         if (isWrite && !writeAllocate) {
-//             // No write allocate: don't bring block into cache
-//             return;
-//         }
+        if (isWrite && !writeAllocate) {
+            // No write allocate: don't bring block into cache
+            return;
+        }
 
-//         // Write allocate OR read miss: bring block into cache
-//         if (set.size() >= blocksPerSet) {
-//             set.pop_back(); // evict LRU
-//         }
-//         set.push_front({tag, true, isWrite});
-//     }
+        // Write allocate OR read miss: bring block into cache
+        if (set.size() >= blocksPerSet) {
+            set.pop_back(); // evict LRU
+        }
+        set.push_front({tag, true, isWrite});
+    }
 
-//     size_t getTotalAccesses() const {
-//         return totalAccesses;
-//     }
+    size_t getTotalAccesses() const {
+        return totalAccesses;
+    }
 
-//     size_t getMisses() const {
-//         return misses;
-//     }
-// };
-
-// Example usage
-int main() {
-    Cache cache(64 * 1024, 32, 8, 1, true); // 64KB, 32B block, 8-way, 1 cycle, write-allocate
-
-    cache.access(0x1000, false); // read
-    cache.access(0x2000, true);  // write
-    cache.access(0x1000, false); // read again (hit)
-
-    std::cout << "Total accesses: " << cache.getTotalAccesses() << "\n";
-    std::cout << "Misses: " << cache.getMisses() << "\n";
-
-    return 0;
-}
+    size_t getMisses() const {
+        return misses;
+    }
+};
 
 
 
