@@ -65,7 +65,7 @@ public:
         sets.resize(numSets);
     }
 
-    void access(uint64_t addr, bool isWrite) {
+    bool access(uint64_t addr, bool isWrite) {
         totalAccesses++;
         size_t setIdx = getSetIndex(addr);
         uint64_t tag = getTag(addr);
@@ -164,6 +164,9 @@ int main(int argc, char **argv) {
 		}
 	}
 
+	Cache l1(L1Size, L1BlockSize, L1Assoc, L1Cyc, WrAlloc); 
+	Cache l2(L2Size, L2BlockSize, L2Assoc, L2Cyc, WrAlloc); 
+	
 	while (getline(file, line)) {
 
 		stringstream ss(line);
@@ -189,11 +192,18 @@ int main(int argc, char **argv) {
 		// DEBUG - remove this line
 		cout << " (dec) " << num << endl;
 
+		l1.access(num);
 	}
 
-	double L1MissRate;
-	double L2MissRate;
+	double L1MissRate = l1.getTotalAcceses;
+	double L2MissRate
 	double avgAccTime;
+
+	//unsigned MemCyc = 0, BSize = 0, L1Size = 0, L2Size = 0, L1Assoc = 0,
+			//L2Assoc = 0, L1Cyc = 0, L2Cyc = 0, WrAlloc = 0;
+	
+
+
 
 	printf("L1miss=%.03f ", L1MissRate);
 	printf("L2miss=%.03f ", L2MissRate);
