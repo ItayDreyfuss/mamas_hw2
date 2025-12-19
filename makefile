@@ -1,15 +1,8 @@
-CXX = g++
-CXXFLAGS = -std=c++17 -Wall -Wextra -O2
 
-TARGET = cacheSim
-SRC = cacheSim.cpp
+cacheSim: cacheSim.cpp
+	g++ -o cacheSim cacheSim.cpp
 
-all: $(TARGET)
-
-$(TARGET): $(SRC)
-	$(CXX) $(CXXFLAGS) $(SRC) -o $(TARGET)
-
+.PHONY: clean
 clean:
-	rm -f $(TARGET)
-
-.PHONY: all clean
+	rm -f *.o
+	rm -f cacheSim
