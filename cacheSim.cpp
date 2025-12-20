@@ -273,7 +273,7 @@ int main(int argc, char **argv) {
 
         if(is_l1_hit) continue; // if L1 hit, we are done
 		if(isWrite && !WrAlloc){
-            total_time += MemCyc; // we need to write to memory directly
+            total_time += L2Cyc + MemCyc; // we need to write to memory directly
             continue; // if we are writing and no write allocate, we are always done at this stage: if its a hit, we are done, if its a miss, everything will happen in background
         } 
         
