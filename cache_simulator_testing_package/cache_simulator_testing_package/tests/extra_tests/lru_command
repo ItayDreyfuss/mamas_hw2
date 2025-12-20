@@ -1,0 +1,1 @@
+./cacheSim trace_lru.txt --mem-cyc 20 --bsize 4 --wr-alloc 1 --l1-size 6 --l1-assoc 2 --l1-cyc 2 --l2-size 9 --l2-assoc 3 --l2-cyc 5

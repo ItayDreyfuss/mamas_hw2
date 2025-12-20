@@ -1,0 +1,1 @@
+./cacheSim trace_hits.txt --mem-cyc 50 --bsize 3 --wr-alloc 1 --l1-size 10 --l1-assoc 1 --l1-cyc 1 --l2-size 12 --l2-assoc 2 --l2-cyc 5

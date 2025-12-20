@@ -1,0 +1,1 @@
+./cacheSim trace_nwa.txt --mem-cyc 20 --bsize 2 --wr-alloc 0 --l1-size 4 --l1-assoc 0 --l1-cyc 1 --l2-size 5 --l2-assoc 0 --l2-cyc 4
