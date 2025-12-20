@@ -149,7 +149,6 @@ public:
         totalAccesses++;
         size_t setIdx = getSetIndex(addr);
         size_t tag = getTag(addr);
-		cout << setIdx << " " << tag << " " << endl; // FIXME: remove debug line
         auto &set = sets[setIdx];
         for (auto it = set.begin(); it != set.end(); ++it) {
             if (it->valid && it->tag == tag) {
@@ -245,19 +244,19 @@ int main(int argc, char **argv) {
 			return 0;
 		}
 
-		// DEBUG - remove this line FIXME:
-		cout << "operation: " << operation;
+		// // DEBUG - remove this line 
+		// cout << "operation: " << operation;
 
 		string cutAddress = address.substr(2); // Removing the "0x" part of the address
 
-		// DEBUG - remove this line FIXME:
-		cout << ", address (hex)" << cutAddress;
+		// // DEBUG - remove this line 
+		// cout << ", address (hex)" << cutAddress;
 
 		unsigned long int num = 0;
 		num = strtoul(cutAddress.c_str(), NULL, 16);
 
-		// DEBUG - remove this line FIXME:
-		cout << " (dec) " << num << endl;
+		// // DEBUG - remove this line 
+		// cout << " (dec) " << num << endl;
         
 
 
@@ -269,11 +268,10 @@ int main(int argc, char **argv) {
 		bool is_l1_hit = l1.access(num, isWrite);
 
 		total_time += L1Cyc; // we accessed l1 from CPU
-		cout << (is_l1_hit?"hit":"miss") << endl; // FIXME: remove debug line
 
         if(is_l1_hit) continue; // if L1 hit, we are done
 		if(isWrite && !WrAlloc){
-            total_time += L2Cyc + MemCyc; // we need to write to memory directly
+            total_time += L2Cyc + MemCyc; // we need to write to L2 and memory directly
             continue; // if we are writing and no write allocate, we are always done at this stage: if its a hit, we are done, if its a miss, everything will happen in background
         } 
         
@@ -293,7 +291,6 @@ int main(int argc, char **argv) {
         }
 
         // if l2 missed, l2 will access memory, and memory will return data. 
-        cout << "we accessed memory " << MemCyc << endl; // FIXME: remove debug line
         total_time += 	MemCyc;
         
         // now we need to bring the block into L2
@@ -311,13 +308,11 @@ int main(int argc, char **argv) {
         }
         // we are done
 	}
-
-	cout << l1.getMisses()  << " " <<  (double)l1.getTotalAccesses() << endl;
+    // Calculating stats
 	double L1MissRate = l1.getMisses() / (double)l1.getTotalAccesses();
 	double L2MissRate = l2.getMisses() / (double)l2.getTotalAccesses();
 	double avgAccTime = total_time / (double)accesses;
 	
-
 	printf("L1miss=%.03f ", L1MissRate);
 	printf("L2miss=%.03f ", L2MissRate);
 	printf("AccTimeAvg=%.03f\n", avgAccTime);
