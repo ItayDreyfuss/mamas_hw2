@@ -2,23 +2,32 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
-
-
-
-#include <iostream>
-#include <unordered_map>
 #include <list>
 #include <vector>
 #include <cstdint>
 
+using std::FILE;
+using std::string;
+using std::cout;
+using std::endl;
+using std::cerr;
+using std::ifstream;
+using std::stringstream;
+
+
+struct Block {
+    size_t tag;
+    bool valid;
+    bool dirty;
+};
+struct EvictionInfo {
+    unsigned long addr;       
+    bool valid;             
+    bool dirty; 
+};
+
 class Cache {
 private:
-    struct Block {
-        size_t tag;
-        bool valid;
-        bool dirty;
-    };
-
     // Parameters
     size_t cacheSize;       // bytes
     size_t blockSize;       // bytes
@@ -65,16 +74,88 @@ public:
         sets.resize(numSets);
     }
 
+    // inserts a block into the cache, and returning the evicted block if exists, otherwise {0, false, false}
+    EvictionInfo insertBlock(unsigned long addr, bool isWrite) {
+        size_t setIdx = getSetIndex(addr);
+        size_t tag = getTag(addr);
+        auto &set = sets[setIdx];
+
+        if (set.size() < blocksPerSet) {
+            // There's space in the set
+            set.push_front({tag, true, isWrite});
+            return {0, false, false}; // No eviction
+        }
+        // No space in the set, check for invalid blocks first
+        for (auto it = set.begin(); it != set.end(); ++it) {
+            if (!it->valid) {
+                // Found an invalid block, use it
+                it->tag = tag;
+                it->valid = true;
+                it->dirty = isWrite;
+                // Move to front (MRU)
+                Block blk = *it;
+                set.erase(it);
+                set.push_front(blk);
+                return {0, false, false}; // No eviction
+            }
+        }
+        // No invalid block found, need to evict LRU
+        Block evictedBlock = set.back();
+        set.pop_back(); // evict LRU
+        set.push_front({tag, true, isWrite});
+
+        // Calculate evicted block address
+        unsigned long blockIndex = evictedBlock.tag * numSets + setIdx;
+        unsigned long evictedAddr = blockIndex * blockSize;
+        return {evictedAddr, true, evictedBlock.dirty};
+    }
+
+    // snoops a specific block from the cache (will be used only in L1)
+    void snoop(unsigned long addr) {
+        size_t setIdx = getSetIndex(addr);
+        size_t tag = getTag(addr);
+        auto &set = sets[setIdx];
+        for (auto it = set.begin(); it != set.end(); ++it) {
+            if (it->tag == tag) {
+                // Found the block to evict
+                it->valid = false;
+                return;
+            }
+        }
+        return;
+    }
+
+    // a function to update a block's dirty status and move it to MRU position(will be used only in L2)
+    void updateDirtyBlock(unsigned long addr) {
+        size_t setIdx = getSetIndex(addr);
+        size_t tag = getTag(addr);
+        auto &set = sets[setIdx];
+        for (auto it = set.begin(); it != set.end(); ++it) {
+            if (it->tag == tag ) {
+                // Found the block to update
+                it->dirty = true;
+                // Move to front (MRU)
+                Block blk = *it;
+                set.erase(it);
+                set.push_front(blk);
+                return;
+            }
+        }
+    }
+
+
+    // Access the cache, returns true if hit, false if miss
     bool access(unsigned long addr, bool isWrite) {
         totalAccesses++;
         size_t setIdx = getSetIndex(addr);
         size_t tag = getTag(addr);
-		cout << setIdx << " " << tag << " " << endl;
+		cout << setIdx << " " << tag << " " << endl; // FIXME: remove debug line
         auto &set = sets[setIdx];
         for (auto it = set.begin(); it != set.end(); ++it) {
             if (it->valid && it->tag == tag) {
                 // Hit: move to front (LRU)
                 Block blk = *it;
+                blk.dirty = blk.dirty || isWrite; // update dirty bit if it's a write
                 set.erase(it);
                 set.push_front(blk);
                 return true;
@@ -83,17 +164,6 @@ public:
 
         // If we are here, it's a miss
         misses++;
-
-        if (isWrite && !writeAllocate) {
-            // No write allocate: don't bring block into cache
-            return false;
-        }
-
-        // Write allocate OR read miss: bring block into cache
-        if (set.size() >= blocksPerSet) {
-            set.pop_back(); // evict LRU
-        }
-        set.push_front({tag, true, isWrite});
         return false;
     }
 
@@ -107,18 +177,6 @@ public:
 };
 
 
-
-
-
-
-
-using std::FILE;
-using std::string;
-using std::cout;
-using std::endl;
-using std::cerr;
-using std::ifstream;
-using std::stringstream;
 
 int main(int argc, char **argv) {
 
@@ -169,8 +227,8 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	Cache l1((1<<L1Size), (1<<BSize), (1<<L1Assoc), L1Cyc, WrAlloc); 
-	Cache l2((1<<L2Size), (1<<BSize), (1<<L2Assoc), L2Cyc, WrAlloc); 
+	Cache l1(1ULL << L1Size, 1ULL << BSize, 1ULL << L1Assoc, L1Cyc, WrAlloc); 
+    Cache l2(1ULL << L2Size, 1ULL << BSize, 1ULL << L2Assoc, L2Cyc, WrAlloc); 
 	
 	unsigned total_time = 0, accesses = 0;
 
@@ -187,50 +245,68 @@ int main(int argc, char **argv) {
 			return 0;
 		}
 
-		// DEBUG - remove this line
+		// DEBUG - remove this line FIXME:
 		cout << "operation: " << operation;
 
 		string cutAddress = address.substr(2); // Removing the "0x" part of the address
 
-		// DEBUG - remove this line
+		// DEBUG - remove this line FIXME:
 		cout << ", address (hex)" << cutAddress;
 
 		unsigned long int num = 0;
 		num = strtoul(cutAddress.c_str(), NULL, 16);
 
-		// DEBUG - remove this line
+		// DEBUG - remove this line FIXME:
 		cout << " (dec) " << num << endl;
         
 
-        // Here our code starts
-		bool write = operation == 'W' || operation == 'w';
-		bool is_l1_hit = l1.access(num, write);
-		// we accessed l1 from CPU
-		total_time += L1Cyc;
 
+
+        // Here our code starts
+        EvictionInfo evictedFromL1, evictedFromL2;
+
+		bool isWrite = operation == 'W' || operation == 'w';
+		bool is_l1_hit = l1.access(num, isWrite);
+
+		total_time += L1Cyc; // we accessed l1 from CPU
 		cout << (is_l1_hit?"hit":"miss") << endl; // FIXME: remove debug line
 
+		if(isWrite && !WrAlloc) continue; // if we are writing and no write allocate, we are always done at this stage: if its a hit, we are done, if its a miss, everything will happen in background
+        if(is_l1_hit) continue; // if L1 hit, we are done
+        
+        // if l1 missed, we access l2   , either we are reading or we are in write mode with write alloc 
+        bool is_l2_hit = l2.access(num, false); // l2 is always accessed in read mode
+        total_time += L2Cyc; // L1 accessed l2, add to total_time
 
-		// if we are writing and no write allocate, we are always done at this stage
-		// if its a hit, we are done, if its a miss, everything will happen in background
-		if(write && !WrAlloc) continue;
+        // if L2 hit, we need to bring block into L1 appropriately
+        if(is_l2_hit){
+            evictedFromL1 = l1.insertBlock(num,isWrite); // bring block into L1
 
-        // if l1 missed
-        if (!is_l1_hit) {
-            // either we are reading or we are in write mode with write alloc 
-			bool is_l2_hit = l2.access(num,write);
-			// L1 accessed l2, add to total_time
-			total_time += L2Cyc;
-			// if l2 missed, l2 will access memory, and memory will return data. 
-			if(!is_l2_hit){
-				cout << "we accessed memory " << MemCyc << endl;
-				total_time += 	MemCyc;
-			}
-			// L2 returns block to L1
-			//total_time += L2Cyc;
-			// L1 returns block to cpu if we are read
-			//if(!write) total_time += L1Cyc;
+            // if some block was evicted from L1, we need to check if we need to update it's dirty bit in L2
+            if(evictedFromL1.valid && evictedFromL1.dirty){
+                l2.updateDirtyBlock(evictedFromL1.addr);    
+            }
+            continue; // we are done
         }
+
+        // if l2 missed, l2 will access memory, and memory will return data. 
+        cout << "we accessed memory " << MemCyc << endl; // FIXME: remove debug line
+        total_time += 	MemCyc;
+        
+        // now we need to bring the block into L2
+        evictedFromL2 = l2.insertBlock(num, false); // l2 always accessed in read mode
+        // if a valid block was evicted from L2, we need to evict it from L1 as well
+        if(evictedFromL2.valid){
+            l1.snoop(evictedFromL2.addr); // we don't write to memory so if the snooped block was dirty, we just discard it(it's not in L1 nor L2 anymore)
+        }
+
+        // now we need to bring the block into L1 from L2
+        evictedFromL1 = l1.insertBlock(num,isWrite);
+        // if some block was evicted from L1, we need to check if we need to update it's dirty bit in L2
+        if(evictedFromL1.valid && evictedFromL1.dirty){
+            l2.updateDirtyBlock(evictedFromL1.addr);    
+        }
+        // we are done
 	}
 
 	cout << l1.getMisses()  << " " <<  (double)l1.getTotalAccesses() << endl;
