@@ -271,8 +271,11 @@ int main(int argc, char **argv) {
 		total_time += L1Cyc; // we accessed l1 from CPU
 		cout << (is_l1_hit?"hit":"miss") << endl; // FIXME: remove debug line
 
-		if(isWrite && !WrAlloc) continue; // if we are writing and no write allocate, we are always done at this stage: if its a hit, we are done, if its a miss, everything will happen in background
         if(is_l1_hit) continue; // if L1 hit, we are done
+		if(isWrite && !WrAlloc){
+            total_time += MemCyc; // we need to write to memory directly
+            continue; // if we are writing and no write allocate, we are always done at this stage: if its a hit, we are done, if its a miss, everything will happen in background
+        } 
         
         // if l1 missed, we access l2   , either we are reading or we are in write mode with write alloc 
         bool is_l2_hit = l2.access(num, false); // l2 is always accessed in read mode
