@@ -126,7 +126,7 @@ public:
     }
 
     // a function to update a block's dirty status and move it to MRU position(will be used only in L2)
-    void updateDirtyBlock(unsigned long addr) {
+    bool updateDirtyBlock(unsigned long addr) {
         size_t setIdx = getSetIndex(addr);
         size_t tag = getTag(addr);
         auto &set = sets[setIdx];
@@ -138,11 +138,11 @@ public:
                 Block blk = *it;
                 set.erase(it);
                 set.push_front(blk);
-                return;
+                return true;
             }
         }
+        return false;
     }
-
 
     // Access the cache, returns true if hit, false if miss
     bool access(unsigned long addr, bool isWrite) {
@@ -265,18 +265,22 @@ int main(int argc, char **argv) {
         EvictionInfo evictedFromL1, evictedFromL2;
 
 		bool isWrite = operation == 'W' || operation == 'w';
-		bool is_l1_hit = l1.access(num, isWrite);
+		bool is_l1_hit = l1.access(num, isWrite), is_l2_hit;
 
 		total_time += L1Cyc; // we accessed l1 from CPU
 
         if(is_l1_hit) continue; // if L1 hit, we are done
 		if(isWrite && !WrAlloc){
-            total_time += L2Cyc + MemCyc; // we need to write to L2 and memory directly
+            is_l2_hit = l2.updateDirtyBlock(num); // if we are writing and no write allocate, we need to update dirty bit in L2 if the block is there
+            total_time += L2Cyc;
+
+            if (!is_l2_hit)
+                total_time += MemCyc;
             continue; // if we are writing and no write allocate, we are always done at this stage: if its a hit, we are done, if its a miss, everything will happen in background
         } 
         
         // if l1 missed, we access l2   , either we are reading or we are in write mode with write alloc 
-        bool is_l2_hit = l2.access(num, false); // l2 is always accessed in read mode
+        is_l2_hit = l2.access(num, false); // l2 is always accessed in read mode
         total_time += L2Cyc; // L1 accessed l2, add to total_time
 
         // if L2 hit, we need to bring block into L1 appropriately
@@ -291,7 +295,7 @@ int main(int argc, char **argv) {
         }
 
         // if l2 missed, l2 will access memory, and memory will return data. 
-        total_time += 	MemCyc;
+        total_time += MemCyc;
         
         // now we need to bring the block into L2
         evictedFromL2 = l2.insertBlock(num, false); // l2 always accessed in read mode
